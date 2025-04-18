@@ -149,7 +149,7 @@ function fetchPosts($pdo) {
             Posts.UserId,
             Posts.Likes,
             Users.Name as AuthorName,
-            Users.Email as AuthorEmail,
+            Users.ProfileImage as AuthorProfileImage,
             Users.Designation as AuthorDesignation
         FROM Posts
         JOIN Users ON Posts.UserId = Users.Id
@@ -171,7 +171,7 @@ function fetchPosts($pdo) {
                 Comments.PostId,
                 Comments.Comment,
                 Users.Name as CommenterName,
-                Users.Email as CommenterEmail
+                Users.ProfileImage as CommenterProfileImage
             FROM Comments
             JOIN Users ON Comments.UserId = Users.Id
             WHERE Comments.PostId IN ($placeholders)
@@ -185,7 +185,7 @@ function fetchPosts($pdo) {
             $commentsByPost[$comment['PostId']][] = [
                 'Comment' => $comment['Comment'],
                 'CommenterName' => $comment['CommenterName'],
-                'CommenterEmail' => $comment['CommenterEmail']
+                'CommenterProfileImage' => $comment['CommenterProfileImage']
             ];
         }
 
