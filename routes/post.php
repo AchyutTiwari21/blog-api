@@ -19,6 +19,11 @@ elseif ($request === '/blog-api/posts' && $method === 'GET') {
     fetchPosts($pdo);
 }
 
+elseif (preg_match('#^/blog-api/post/(\d+)$#', $request, $matches) && $method === 'GET') {
+    $postId = $matches[1];
+    getPost($pdo, $postId);
+}
+
 elseif (preg_match('#^/blog-api/comment-post/(\d+)$#', $request, $matches) && $method === 'POST') {
     $postId = $matches[1];
     commentPost($pdo, $postId);

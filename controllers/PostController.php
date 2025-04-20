@@ -139,7 +139,21 @@ function deletePost($pdo, $postId) {
 }
 
 function fetchPosts($pdo) {
-    // Step 1: Fetch posts with author info
+    // Step 1: Authenticate user from cookies
+    $email = $_COOKIE['email'] ?? null;
+    $token = $_COOKIE['token'] ?? null;
+
+    $userId = null;
+    if ($email && $token) {
+        $stmt = $pdo->prepare("SELECT Id FROM Users WHERE Email = ? AND Token = ?");
+        $stmt->execute([$email, $token]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            $userId = $user['Id'];
+        }
+    }
+
+    // Step 2: Fetch posts with author info
     $stmt = $pdo->prepare("
         SELECT 
             Posts.Id, 
@@ -148,9 +162,9 @@ function fetchPosts($pdo) {
             Posts.FeaturedImage, 
             Posts.UserId,
             Posts.Likes,
-            Users.Name as AuthorName,
-            Users.ProfileImage as AuthorProfileImage,
-            Users.Designation as AuthorDesignation
+            Users.Name AS AuthorName,
+            Users.Designation AS AuthorDesignation,
+            Users.ProfileImage AS AuthorProfileImage
         FROM Posts
         JOIN Users ON Posts.UserId = Users.Id
         ORDER BY Posts.Id DESC
@@ -158,20 +172,20 @@ function fetchPosts($pdo) {
     $stmt->execute();
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Step 2: Get all post IDs
     $postIds = array_column($posts, 'Id');
 
+    // Step 3: Fetch comments
+    $commentsByPost = [];
     if (!empty($postIds)) {
-        // Prepare placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($postIds), '?'));
 
-        // Step 3: Fetch all comments for these posts with commenter info
         $stmt = $pdo->prepare("
             SELECT 
+                Comments.Id,
                 Comments.PostId,
                 Comments.Comment,
-                Users.Name as CommenterName,
-                Users.ProfileImage as CommenterProfileImage
+                Users.Name AS CommenterName,
+                Users.ProfileImage AS CommenterProfileImage
             FROM Comments
             JOIN Users ON Comments.UserId = Users.Id
             WHERE Comments.PostId IN ($placeholders)
@@ -179,8 +193,6 @@ function fetchPosts($pdo) {
         $stmt->execute($postIds);
         $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Step 4: Group comments by PostId
-        $commentsByPost = [];
         foreach ($comments as $comment) {
             $commentsByPost[$comment['PostId']][] = [
                 'Comment' => $comment['Comment'],
@@ -188,16 +200,95 @@ function fetchPosts($pdo) {
                 'CommenterProfileImage' => $comment['CommenterProfileImage']
             ];
         }
+    }
 
-        // Step 5: Add comments to corresponding post
-        foreach ($posts as &$post) {
-            $post['Comments'] = $commentsByPost[$post['Id']] ?? [];
-        }
+    // Step 4: Check which posts the user has liked (if logged in)
+    $likedPostIds = [];
+    if ($userId && !empty($postIds)) {
+        $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+        $params = array_merge([$userId], $postIds);
+
+        $stmt = $pdo->prepare("
+            SELECT PostId FROM PostLikes 
+            WHERE UserId = ? AND PostId IN ($placeholders)
+        ");
+        $stmt->execute($params);
+        $likes = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+        $likedPostIds = array_map('intval', $likes);
+    }
+
+    // Step 5: Combine everything
+    foreach ($posts as &$post) {
+        $post['Comments'] = $commentsByPost[$post['Id']] ?? [];
+        $post['HasLiked'] = in_array($post['Id'], $likedPostIds);
     }
 
     http_response_code(200);
     echo json_encode(['posts' => $posts]);
     
+}
+
+function getPost($pdo, $postId) {
+    // ✅ Auth check
+    $token = $_COOKIE['token'] ?? null;
+    $email = $_COOKIE['email'] ?? null;
+
+    if (!$token || !$email) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM Users WHERE Email = ? AND Token = ?");
+    $stmt->execute([$email, $token]);
+    $authUser = $stmt->fetch();
+
+    if (!$authUser) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // ✅ Fetch post with author info
+    $stmt = $pdo->prepare("
+        SELECT 
+            Posts.Id,
+            Posts.Title,
+            Posts.Description,
+            Posts.FeaturedImage,
+            Posts.UserId,
+            Users.Name AS AuthorName,
+            Users.Email AS AuthorEmail
+        FROM Posts
+        JOIN Users ON Posts.UserId = Users.Id
+        WHERE Posts.Id = ?
+    ");
+    $stmt->execute([$postId]);
+    $post = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$post) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Post not found']);
+        exit;
+    }
+
+    // ✅ Fetch comments for the post
+    $stmt = $pdo->prepare("
+        SELECT 
+            Comments.Comment,
+            Users.Name AS CommenterName,
+            Users.Email AS CommenterEmail
+        FROM Comments
+        JOIN Users ON Comments.UserId = Users.Id
+        WHERE Comments.PostId = ?
+    ");
+    $stmt->execute([$postId]);
+    $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $post['comments'] = $comments;
+
+    http_response_code(200);
+    echo json_encode($post);
 }
 
 function commentPost($pdo, $postId) {
@@ -233,8 +324,13 @@ function commentPost($pdo, $postId) {
     $stmt = $pdo->prepare("INSERT INTO Comments (Comment, PostId, UserId) VALUES (?, ?, ?)");
     $stmt->execute([$comment, $postId, $user['Id']]);
 
+    $commentId = $pdo->lastInsertId();
+
     http_response_code(201);
-    echo json_encode(['message' => 'Comment added successfully']);
+    echo json_encode([
+        'message' => 'Comment added successfully',
+        'commentId' => $commentId
+    ]);
 }
 
 function likePost($pdo, $postId) {
