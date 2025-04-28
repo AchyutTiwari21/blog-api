@@ -431,3 +431,43 @@ function unlikePost($pdo, $postId) {
     http_response_code(200);
     echo json_encode(['message' => 'Post unliked successfully']);
 }
+
+function fetchUserPosts($pdo) {
+    $email = $_COOKIE['email'] ?? null;
+    $token = $_COOKIE['token'] ?? null;
+
+    if (!$email || !$token) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+
+    // Verify the user
+    $stmt = $pdo->prepare("SELECT * FROM Users WHERE Email = ? AND Token = ?");
+    $stmt->execute([$email, $token]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid user']);
+        exit;
+    }
+
+    // Fetch posts for that user
+    $stmt = $pdo->prepare("
+        SELECT 
+            Posts.Id,
+            Posts.Title,
+            Posts.Description,
+            Posts.FeaturedImage,
+            Posts.UserId
+        FROM Posts
+        WHERE Posts.UserId = ?
+        ORDER BY Posts.Id DESC
+    ");
+    $stmt->execute([$user['Id']]);
+    $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    http_response_code(200);
+    echo json_encode(['posts' => $posts]);
+}

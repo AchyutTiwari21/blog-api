@@ -38,3 +38,7 @@ elseif (preg_match('#^/blog-api/unlike-post/(\d+)$#', $request, $matches) && $me
     $postId = $matches[1];
     unlikePost($pdo, $postId);
 }
+
+elseif ($request === '/blog-api/user-posts' && $method === 'GET') {
+    fetchUserPosts($pdo);
+}
