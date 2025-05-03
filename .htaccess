@@ -1,8 +1,22 @@
+# Enable rewrite engine
 RewriteEngine On
 
-# If the requested file or directory does not exist
+# Redirect to HTTPS if not already (optional, can cause issues on InfinityFree)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# CORS headers for all responses
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "https://blogging-application-three.vercel.app"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization"
+</IfModule>
+
+# Handle preflight OPTIONS requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+# Make index.php handle all requests if not a file or directory
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-
-# Route all other requests to index.php
-RewriteRule ^ index.php [QSA,L]
+RewriteRule ^(.*)$ index.php [QSA,L]
