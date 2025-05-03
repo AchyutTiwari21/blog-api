@@ -1,10 +1,10 @@
 <?php
 require_once __DIR__ . '/../controllers/UserController.php';
 
-if ($request === '/blog-api/user' && $method === 'GET') {
+if ($request === '/user' && $method === 'GET') {
     getUser($pdo);
 }
 
-elseif ($request === '/blog-api/update-user' && $method === 'PUT') {
+elseif ($request === '/update-user' && $method === 'PUT') {
     updateUserDetails($pdo);
 }
