@@ -40,8 +40,8 @@ function login($pdo) {
         $stmt = $pdo->prepare("UPDATE Users SET Token = ? WHERE Id = ?");
         $stmt->execute([$token, $user['Id']]);
 
-        setcookie('email', $email, time() + 3600, "/", "", false, true);
-        setcookie('token', $token, time() + 3600, "/", "", false, true);
+        setcookie('email', $email, time() + 3600, "/", "", true, true);
+        setcookie('token', $token, time() + 3600, "/", "", true, true);
 
         http_response_code(200);
         echo json_encode(['message' => 'Login successful']);
@@ -64,8 +64,8 @@ function logout($pdo) {
     $stmt = $pdo->prepare("UPDATE Users SET Token = NULL WHERE Email = ? AND Token = ?");
     $stmt->execute([$email, $token]);
 
-    setcookie('email', '', time() - 3600, "/", "", false, true);
-    setcookie('token', '', time() - 3600, "/", "", false, true);
+    setcookie('email', '', time() - 3600, "/", "", true, true);
+    setcookie('token', '', time() - 3600, "/", "", true, true);
 
     http_response_code(200);
     echo json_encode(['message' => 'Logged out']);
